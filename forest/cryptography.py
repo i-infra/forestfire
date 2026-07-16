@@ -1,9 +1,9 @@
 import gzip
 import hashlib
-from typing import Union, cast
+from typing import Union
 
 import base58
-from Crypto.Cipher import AES, _mode_eax
+from Crypto.Cipher import AES
 
 from forest import utils
 
@@ -33,14 +33,14 @@ if len(AESKEY) == 64:
 
 def encrypt(data: bytes, key: bytes) -> bytes:
     """Accepts data (as arbitrary length bytearray) and key (as 16B or 32B bytearray) and returns authenticated and encrypted blob (as bytearray)"""
-    cipher = cast(_mode_eax.EaxMode, AES.new(key, AES.MODE_EAX))
+    cipher = AES.new(key, AES.MODE_EAX)
     ciphertext, authtag = cipher.encrypt_and_digest(data)  # pylint: disable
     return cipher.nonce + authtag + ciphertext
 
 
 def decrypt(data: bytes, key: bytes) -> bytes:
     """Accepts ciphertext (as arbitrary length bytearray) and key (as 16B or 32B bytearray) and returns decrypted (plaintext) blob (as bytearray)"""
-    cipher = cast(_mode_eax.EaxMode, AES.new(key, AES.MODE_EAX, data[:16]))
+    cipher = AES.new(key, AES.MODE_EAX, data[:16])
     return cipher.decrypt_and_verify(data[32:], data[16:32])  # pylint: disable
 
 
