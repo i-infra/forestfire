@@ -7,8 +7,8 @@ import asyncio
 import logging
 import base64
 
-from typing import Optional, Any, Union
-from subprocess import PIPE, Popen
+from typing import Optional
+from subprocess import PIPE
 from asyncio.subprocess import create_subprocess_exec
 import typing
 
@@ -40,11 +40,13 @@ class SignalDatastore:
         logging.debug("bot number: %s", bot_number)
         self.bot_number = bot_number
         self.litestream_path = "./litestreambin"
-        self.loop = asyncio.get_event_loop()
         self.client = pdictng.fasterpKVStoreClient()
         self.keystate: Optional[str] = None
+        self.shutting_down = False
+        self.periodic_backup_task: Optional[asyncio.Task] = None
         if os.path.exists("state/data/accounts.json"):
-            self.accounts_map = json.loads(open("state/data/accounts.json").read())
+            with open("state/data/accounts.json") as f:
+                self.accounts_map = json.loads(f.read())
         else:
             if not os.path.exists("state/data/"):
                 os.makedirs("state/data/")
@@ -52,7 +54,8 @@ class SignalDatastore:
             if not accounts_json_encoded:
                 raise Exception("No accounts.json and no ACCOUNTS_JSON_ENCODED envar!")
             accounts_json = base64.b64decode(accounts_json_encoded).decode()
-            open("state/data/accounts.json", "w").write(accounts_json)
+            with open("state/data/accounts.json", "w") as f:
+                f.write(accounts_json)
             self.accounts_map = json.loads(accounts_json)
         maybe_account = [
             a
@@ -78,7 +81,14 @@ class SignalDatastore:
             stdout=PIPE,
             stderr=PIPE
         )
-        await self.litestream_restore.wait()
+        _, stderr = await self.litestream_restore.communicate()
+        if self.litestream_restore.returncode != 0:
+            # nonzero is expected on first run when no replica exists yet
+            logging.warning(
+                "litestream restore exited %s: %s",
+                self.litestream_restore.returncode,
+                stderr.decode().strip(),
+            )
 
     async def start_litestream(self) -> str:
         """start the litestream replication process"""
@@ -89,6 +99,14 @@ class SignalDatastore:
         )
         assert self.litestream.stdout
         line = await self.litestream.stdout.readline()
+        if self.litestream.returncode is not None:
+            assert self.litestream.stderr
+            stderr = await self.litestream.stderr.read()
+            logging.error(
+                "litestream replicate exited %s at startup: %s",
+                self.litestream.returncode,
+                stderr.decode().strip(),
+            )
         return line.decode()
 
     async def stop_litestream(self) -> int:
@@ -96,7 +114,7 @@ class SignalDatastore:
         return await self.litestream.wait()
 
     async def periodic_backup(self, tick_seconds: int = 10) -> bool:
-        while True and not self.shutting_down:
+        while not self.shutting_down:
             await self.async_ensure_backup()
             await asyncio.sleep(tick_seconds)
         # one last time
@@ -105,17 +123,19 @@ class SignalDatastore:
 
     def start_periodic_backup(self) -> None:
         self.shutting_down = False
-        self.periodic_backup_task = asyncio.get_event_loop().create_task(
+        self.periodic_backup_task = asyncio.get_running_loop().create_task(
             self.periodic_backup()
         )
 
     async def stop_periodic_backup(self) -> None:
         self.shutting_down = True
-        self.periodic_backup_task.cancel()
+        if self.periodic_backup_task:
+            self.periodic_backup_task.cancel()
 
     async def async_ensure_backup(self) -> Optional[str]:
-        """on shutdown: grab the keystate and post it to the persistence backend"""
-        self.keystate = open(f"state/data/{self.account.get('path', '')}").read()
+        """grab the keystate and post it to the persistence backend if it changed"""
+        with open(f"state/data/{self.account.get('path', '')}") as f:
+            self.keystate = f.read()
         # compare and store
         if (await self.client.get(self.account.get("uuid"))) != self.keystate:
             result = await self.client.post(self.account.get("uuid"), self.keystate)
@@ -130,27 +150,15 @@ class SignalDatastore:
     async def async_startup(self) -> None:
         """on startup: fetch keystate from persistence backend, write it out if it doesn't match the existing contents, then restore more keystate from litestream, then start replication"""
         self.keystate = await self.client.get(self.account.get("uuid"))
+        keystate_path = f"state/data/{self.account['path']}"
         if self.keystate and (
-            not os.path.exists(f"state/data/{self.account['path']}")
-            or self.keystate != open(f"state/data/{self.account['path']}").read()
+            not os.path.exists(keystate_path)
+            or self.keystate != open(keystate_path).read()
         ):
             logging.debug("wrote out keystate as it did not exist")
-            open(f"state/data/{self.account['path']}", "w").write(self.keystate)
+            with open(keystate_path, "w") as f:
+                f.write(self.keystate)
         await self.restore_litestream()
         await asyncio.sleep(1)
         await self.start_litestream()
-        asyncio.get_event_loop().call_later(5, self.start_periodic_backup)
-
-    def startup(self) -> None:
-        # FIXME
-        self.restore_task = asyncio.create_task(self.async_startup())
-
-    def shutdown(self) -> None:
-        # FIXME
-        self.backup_task = asyncio.create_task(self.async_ensure_backup())
-
-    def wait_finished(self) -> None:
-        # FIXME
-        pending = asyncio.all_tasks()
-        loop = asyncio.get_running_loop()
-        loop.run_until_complete(asyncio.gather(*pending))
+        asyncio.get_running_loop().call_later(5, self.start_periodic_backup)
