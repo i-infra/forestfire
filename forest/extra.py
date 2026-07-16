@@ -183,7 +183,7 @@ class DialogBot(TalkBack):
         self.dialog = Dialog()
         super().__init__()
         # wait one second for everything to settle, then create a task to check for dialog.json in PWD and load
-        self.dialog_load_task = asyncio.get_event_loop().call_later(
+        self.dialog_load_task = asyncio.get_running_loop().call_later(
             1, lambda: asyncio.create_task(self.finish_init_by_loading())
         )
 

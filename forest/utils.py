@@ -1,4 +1,4 @@
-#!/usr/bin/python3.9
+#!/usr/bin/env python3
 # Copyright (c) 2021 MobileCoin Inc.
 # Copyright (c) 2021 The Forest Team
 import functools
@@ -37,7 +37,9 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
         if not log_record.get("timestamp"):
             # this doesn't use record.created, so it is slightly off
-            now = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            now = datetime.datetime.now(datetime.timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S.%fZ"
+            )
             log_record["timestamp"] = now
         if log_record.get("level"):
             log_record["level"] = log_record["level"].upper()

@@ -122,7 +122,13 @@ class PGInterface:
     ) -> None:
         """Accepts a PGExpressions argument containing postgresql expressions, a database string, and an optional event loop."""
 
-        self.loop = loop or asyncio.get_event_loop()
+        if loop is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # no loop running yet; make one for the sync_* helpers
+                loop = asyncio.new_event_loop()
+        self.loop = loop
         self.database: Union[str, dict] = copy.deepcopy(
             database
         )  # either a db uri or canned resps

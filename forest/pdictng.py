@@ -114,7 +114,6 @@ class aPersistDict(Generic[V]):
         self.dict_: dict[str, Any] = {}
         self.client: persistentKVStoreClient = fasterpKVStoreClient()
         self.rwlock = asyncio.Lock()
-        self.loop = asyncio.get_event_loop()
         self.init_task = asyncio.create_task(self.finish_init(**kwargs))
         self.write_task: Optional[asyncio.Task] = None
 

@@ -1707,7 +1707,7 @@ async def admin_handler(request: web.Request) -> web.Response:
 
 
 def fmt_ms(ts: int) -> str:
-    return datetime.datetime.utcfromtimestamp(ts / 1000).isoformat()
+    return datetime.datetime.fromtimestamp(ts / 1000, tz=datetime.timezone.utc).isoformat()
 
 
 async def metrics(request: web.Request) -> web.Response:
