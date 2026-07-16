@@ -1,19 +1,30 @@
 import gzip
 import hashlib
-import logging
-import os
 from typing import Union, cast
 
 import base58
 from Crypto.Cipher import AES, _mode_eax
 
-SALT = os.getenv("SALT", "ECmG8HtNNMWb4o2bzyMqCmPA6KTYJPCkd")
-# build your AESKEY envvar with this: cat /dev/urandom | head -c 32 | base58
-AESKEY = base58.b58decode(os.getenv("AESKEY", "kWKuomB9Ty3GcJ9yA1yED").encode()) * 2
+from forest import utils
 
-if not AESKEY or len(AESKEY) not in [16, 32, 64]:
-    logging.error(
-        "Need to set 128b or 256b (16 or 32 byte) AESKEY envvar for persistence. It should be base58 encoded."
+SALT = utils.get_secret("SALT")
+if not SALT:
+    raise RuntimeError(
+        "SALT envvar must be set for persistence. "
+        "Generate one with: cat /dev/urandom | head -c 32 | base58"
+    )
+# build your AESKEY envvar with this: cat /dev/urandom | head -c 32 | base58
+_aeskey_b58 = utils.get_secret("AESKEY")
+if not _aeskey_b58:
+    raise RuntimeError(
+        "AESKEY envvar must be set for persistence (128b or 256b, base58 encoded). "
+        "Generate one with: cat /dev/urandom | head -c 32 | base58"
+    )
+AESKEY = base58.b58decode(_aeskey_b58.encode()) * 2
+
+if len(AESKEY) not in [16, 32, 64]:
+    raise RuntimeError(
+        "AESKEY must decode to 16 or 32 bytes (128b or 256b), base58 encoded."
     )
 
 if len(AESKEY) == 64:
