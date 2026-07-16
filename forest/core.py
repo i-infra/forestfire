@@ -1689,19 +1689,26 @@ async def metrics(request: web.Request) -> web.Response:
 
 
 async def ready_check(request: web.Request) -> web.Response:
-    """TODO: think about what indicates readiness besides the web.Application running"""
-    bot = request.app["bot"]
-    return web.Response(
-        status=200,
-    )
+    """ready once the bot exists and the signal-cli child process has been spawned"""
+    bot = request.app.get("bot")
+    if not bot:
+        return web.Response(status=503, text="no bot")
+    if not bot.proc:
+        return web.Response(status=503, text="signal-cli not started")
+    return web.Response(status=200, text="ready")
 
 
 async def health_check(request: web.Request) -> web.Response:
-    """TODO: think about what indicates health besides the web.Application running"""
-    bot = request.app["bot"]
-    return web.Response(
-        status=200,
-    )
+    """healthy while the signal-cli child process is alive"""
+    bot = request.app.get("bot")
+    if not bot:
+        return web.Response(status=503, text="no bot")
+    if not bot.proc or bot.proc.returncode is not None:
+        return web.Response(
+            status=503,
+            text=f"signal-cli not running (returncode: {bot.proc.returncode if bot.proc else None})",
+        )
+    return web.Response(status=200, text="ok")
 
 
 async def restart(request: web.Request) -> web.Response:
