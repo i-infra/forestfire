@@ -5,6 +5,7 @@
 """
 The core chatbot framework: Message, Signal, Bot, PayBot, and app
 """
+
 import ast
 import asyncio
 import asyncio.subprocess as subprocess  # https://github.com/PyCQA/pylint/issues/1469
@@ -759,7 +760,7 @@ class Bot(Signal):
             return ""
         # probably wrong
         if self.mentions_us(msg) and msg.full_text:
-            msg.parse_text(msg.full_text.lstrip("\N{Object Replacement Character} "))
+            msg.parse_text(msg.full_text.lstrip("\N{OBJECT REPLACEMENT CHARACTER} "))
         # happy part direct match
         if hasattr(self, "do_" + msg.arg0):
             return msg.arg0
@@ -1707,7 +1708,9 @@ async def admin_handler(request: web.Request) -> web.Response:
 
 
 def fmt_ms(ts: int) -> str:
-    return datetime.datetime.fromtimestamp(ts / 1000, tz=datetime.timezone.utc).isoformat()
+    return datetime.datetime.fromtimestamp(
+        ts / 1000, tz=datetime.timezone.utc
+    ).isoformat()
 
 
 async def metrics(request: web.Request) -> web.Response:
