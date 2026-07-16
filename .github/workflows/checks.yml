@@ -26,3 +26,6 @@ jobs:
       - name: Pylint
         run: pylint --version; pylint forest mc_util
         if: always()
+      - name: Pytest
+        run: python -m pytest tests --cov forest --cov mc_util
+        if: always()
