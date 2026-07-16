@@ -55,7 +55,7 @@ from ulid2 import generate_ulid_as_base32 as get_uid
 import mc_util
 from forest import payments_monitor, pghelp, string_dist, utils, datastore
 from forest.cryptography import hash_salt
-from forest.message import AuxinMessage, Message, StdioMessage
+from forest.message import Message, StdioMessage
 
 try:
     import captcha
