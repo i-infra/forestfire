@@ -1,41 +1,45 @@
-[tool.poetry]
+[project]
 name = "forestbot"
-version = "1.2.6"
+version = "2.0.0"
 description = "Enables a Forest of MobileCoin enabled Signal bots"
-#long_description = "Forest is an async framework for running payments-enabled chat and utility bots for Signal Messenger."
-homepage = "https://github.com/mobilecoinofficial/forest"
-authors = ["Forest <forest@mobilecoin.com>"]
-license = "MIT"
-packages = [{include = "forest"}, {include = "mc_util"}]
 readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Forest", email = "forest@mobilecoin.com" }]
+requires-python = ">=3.11"
+dependencies = [
+    "asyncpg",
+    "base58",
+    "phonenumbers",
+    "prometheus_async",
+    "prometheus_client",
+    "protobuf>=4.25",
+    "ulid2",
+    "pycryptodome",
+    "aiohttp[speedups]>=3.11",
+    "python-json-logger>=2.0.7",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-aioprocessing = "*"
-asyncpg = "*"
-base58 = "*"
-phonenumbers = "*"
-prometheus_async = "*"
-prometheus_client = "*"
-protobuf = "*"
-ulid2 = "*"
-pycryptodome = "*"
-aiohttp = {extras = ["speedups"], version = "^3.8.1"}
-python-json-logger = "^2.0.7"
+[project.urls]
+homepage = "https://github.com/i-infra/forestfire"
 
-[tool.poetry.dev-dependencies]
-black = "^24.1.1"
-mypy = "*"
-pylint = "*"
-pytest = "*"
-pytest-cov = "*"
-pytest-asyncio = "*"
-types-protobuf = "^3.19.12"
-isort = "*"
+[dependency-groups]
+dev = [
+    "black>=24.1.1",
+    "mypy",
+    "pylint",
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "types-protobuf>=4.25",
+    "isort",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["forest", "mc_util"]
 
 [tool.mypy]
 ignore_missing_imports=true

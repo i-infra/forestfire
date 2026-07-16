@@ -2,7 +2,7 @@
 # Copyright (c) 2021 MobileCoin Inc.
 # Copyright (c) 2021 The Forest Team
 import functools
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger import json as jsonlogger
 import logging
 import shutil
 import os
