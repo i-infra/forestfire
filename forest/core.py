@@ -841,6 +841,40 @@ class Bot(Signal):
             resp = self.documented_commands()
         return resp
 
+    @requires_admin
+    async def do_eval(self, msg: Message) -> Response:
+        """Evaluates a few lines of Python. Preface with "return" to reply with result.
+        Gated behind the ENABLE_EVAL secret; intended for debugging, not production."""
+        if not utils.get_secret("ENABLE_EVAL"):
+            return "do_eval is disabled. Set ENABLE_EVAL=1 to enable it for debugging."
+
+        async def async_exec(stmts: str, env: Optional[dict] = None) -> Any:
+            parsed_stmts = ast.parse(stmts)
+            fn_name = "_async_exec_f"
+            my_fn = f"async def {fn_name}(): pass"
+            parsed_fn = ast.parse(my_fn)
+            for node in parsed_stmts.body:
+                ast.increment_lineno(node)
+            assert isinstance(parsed_fn.body[0], ast.AsyncFunctionDef)
+            # replace the empty async def _async_exec_f(): pass body
+            # with the AST parsed from the message
+            parsed_fn.body[0].body = parsed_stmts.body
+            code = compile(parsed_fn, filename="<ast>", mode="exec")
+            exec(code, env or globals())  # pylint: disable=exec-used
+            # pylint: disable=eval-used
+            return await eval(f"{fn_name}()", env or globals())
+
+        if msg.full_text and msg.tokens and len(msg.tokens) > 1:
+            source_blob = msg.full_text.replace(msg.arg0, "", 1).lstrip("/ ")
+            try:
+                return str(await async_exec(source_blob, globals() | locals()))
+            except:  # pylint: disable=bare-except
+                exception_traceback = "".join(
+                    traceback.format_exception(*sys.exc_info())
+                )
+                return exception_traceback
+        return None
+
     async def get_uuid_by_phone(self, phonenumber: str) -> Optional[str]:
         """Queries signal-cli's recipients-store for a UUID, provided a phone number."""
         if phonenumber.startswith("+"):
