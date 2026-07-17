@@ -5,26 +5,21 @@
 import asyncio
 import json
 import os
-import time
 from typing import Any, Generic, Optional, TypeVar, overload
 import aiohttp
+from forest import utils
 from forest.cryptography import get_ciphertext_value, get_cleartext_value, hash_salt
 
-import socket
-
-# def hash_salt(v): return v
-# def get_cleartext_value(v): return v
-# def get_ciphertext_value(v): return v
-
-# /etc/hostname DNE on MacOS
-HOSTNAME = socket.gethostname()
-
-NAMESPACE = os.getenv("NAMESPACE", HOSTNAME)
-pAUTH = os.getenv("PAUTH", "denorocks")
-pURL = os.getenv("PURL", "http://localhost:8000")
-
+NAMESPACE = utils.get_secret("NAMESPACE")
+if not NAMESPACE:
+    raise RuntimeError(
+        "NAMESPACE envvar must be set for persistence. It must be stable across "
+        "deploys — a hostname default silently orphans data when hostnames change."
+    )
+pAUTH = utils.get_secret("PAUTH")
 if not pAUTH:
-    raise ValueError("Need to set PAUTH envvar for persistence")
+    raise RuntimeError("PAUTH envvar must be set for persistence.")
+pURL = os.getenv("PURL", "http://localhost:8000")
 
 
 class persistentKVStoreClient:

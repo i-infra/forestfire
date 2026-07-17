@@ -23,6 +23,8 @@ os.environ.setdefault("SALT", "testsalt")
 os.environ.setdefault("AESKEY", "4444444444444444444444")
 os.environ.setdefault("ADMIN", ADMIN_UUID)
 os.environ.setdefault("ENABLE_EVAL", "1")
+os.environ.setdefault("NAMESPACE", "test-namespace")
+os.environ.setdefault("PAUTH", "test-pauth")
 
 ACCOUNTS_JSON = {
     "accounts": [
