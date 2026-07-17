@@ -69,8 +69,11 @@ PAUTH=...     # auth token for the KV backend
 PURL=https://your-kv-worker.example.com
 ```
 
-The framework **fails closed**: it refuses to start without `AESKEY`, `SALT`,
-`NAMESPACE`, and `PAUTH`. There are no insecure defaults to forget to override.
+A minimal bot needs only `BOT_NUMBER` and `ADMIN`. The persistence secrets
+(`AESKEY`, `SALT`, `NAMESPACE`, `PAUTH`) are validated **lazily** — they're
+required the first time the bot encrypts or stores state, not at startup, so a
+stateless bot doesn't need them. When persistence *is* used, the framework
+**fails closed**: there are no insecure defaults to forget to override.
 
 Run it:
 
@@ -82,11 +85,16 @@ Text your bot `/hello`, `/ping`, or `/help`.
 
 ## Environment variables
 
-Required:
+Always required:
 
 | var | meaning |
 |---|---|
 | `BOT_NUMBER` | the bot's own signal-cli account (E164) |
+
+Required only when the bot persists state (validated on first use):
+
+| var | meaning |
+|---|---|
 | `AESKEY`, `SALT` | encryption key + hash salt for persisted state (base58) |
 | `NAMESPACE` | persistence namespace; stable across deploys, one writer at a time |
 | `PAUTH`, `PURL` | auth + URL for the KV persistence backend |

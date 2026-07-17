@@ -4,7 +4,7 @@ the revival release. breaking changes throughout:
 
 - python >=3.11 (3.13 in Docker/CI); PEP 621 pyproject with hatchling, poetry and poetry.lock are gone
 - uuids are the only user identity: `Message.source` is a deprecated alias of `Message.uuid`, recipients must be uuids, `ADMIN`/`ADMINS` are uuids, mentions match the bot's uuid, `phonenumbers` dependency dropped. `bot_number` renamed to `account_id` (the E164 survives only as the signal-cli account key)
-- fail closed on missing secrets: `AESKEY`, `SALT`, `NAMESPACE`, `PAUTH` are now required (no committed defaults, no hostname namespace)
+- fail closed on missing secrets: `AESKEY`, `SALT`, `NAMESPACE`, `PAUTH` (no committed defaults, no hostname namespace). validated lazily on first use, so a stateless bot only needs `BOT_NUMBER`
 - aPersistDict: falsy values readable, ops await the restore, atomic `pop`, JSON-serializability enforced, fire-and-forget `d[k] = v` removed (always `await d.set(...)`)
 - multi-writer unsupported and enforced: one writer process per NAMESPACE via an unencrypted `NAMESPACE_CLAIM` lease in the KV backend
 - `/user`, `/admin`, `/restart` webhooks are gated behind `ENABLE_WEBHOOKS=1` (404 otherwise); `/health` and `/ready` check the signal-cli child for k8s probes
