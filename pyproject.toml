@@ -41,6 +41,13 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["forest", "mc_util"]
 
+[tool.black]
+# generated protobuf code is not ours to format
+extend-exclude = '_pb2\.py$'
+
+[tool.pylint.MAIN]
+ignore-patterns = [".*_pb2.py"]
+
 [tool.mypy]
 ignore_missing_imports=true
 
@@ -68,6 +75,11 @@ disable= [
     "fixme",
     # "no-self-use",
     "unspecified-encoding",
+    "use-dict-literal",
+    "abstract-method",
+    "too-many-positional-arguments",
+    "too-many-public-methods",
+    "broad-exception-raised",
     # handled by black
     "format",
     "line-too-long",

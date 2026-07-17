@@ -11,7 +11,6 @@ import base58
 from . import external_pb2
 from . import printable_pb2
 
-
 PMOB = Decimal("1e12")
 FEE_PMOB = int(1e12 * 0.0004)  # mobilecoin transaction fee in picomob.
 
