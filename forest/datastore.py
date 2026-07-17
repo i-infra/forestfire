@@ -40,7 +40,10 @@ class SignalDatastore:
         logging.debug("account id: %s", account_id)
         self.account_id = account_id
         self.litestream_path = "./litestreambin"
-        self.client = pdictng.fasterpKVStoreClient()
+        # the KV client is only needed for keystate backup/restore (RESTORE=1),
+        # and constructing it demands PAUTH/NAMESPACE, so build it lazily —
+        # a bot that doesn't back up keystate needs none of those secrets
+        self._client: Optional[pdictng.persistentKVStoreClient] = None
         self.keystate: Optional[str] = None
         self.shutting_down = False
         self.periodic_backup_task: Optional[asyncio.Task] = None
@@ -73,6 +76,14 @@ class SignalDatastore:
         )
         self.litestream_replicate_cmd = f"{self.litestream_path} replicate -config ./litestream_backup_accounts.yml".split()
         self.litestream_restore_cmd = f"{self.litestream_path} restore -config ./litestream_backup_accounts.yml {self.litestream_database_path}".split()
+
+    @property
+    def client(self) -> pdictng.persistentKVStoreClient:
+        """The KV client used for keystate backup. Built on first access so that
+        bots which never back up keystate don't need PAUTH/NAMESPACE set."""
+        if self._client is None:
+            self._client = pdictng.fasterpKVStoreClient()
+        return self._client
 
     async def restore_litestream(self) -> None:
         """run the command to restore a database from litestream"""

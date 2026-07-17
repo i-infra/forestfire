@@ -19,7 +19,8 @@ async def bot():
     bot.exiting = True
     bot.handle_messages_task.cancel()
     await bot.client_session.close()
-    await bot.datastore.client.conn.close()
+    if bot.datastore._client is not None:
+        await bot.datastore._client.conn.close()
     await core.pghelp.pool.close()
 
 

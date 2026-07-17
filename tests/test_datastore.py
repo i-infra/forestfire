@@ -18,8 +18,8 @@ from tests.conftest import ACCOUNTS_JSON, BOT_NUMBER, BOT_UUID, KEYSTATE, FakeKV
 async def ds():
     """A SignalDatastore against the fake account dir, with an in-memory KV backend"""
     store = datastore.SignalDatastore(BOT_NUMBER)
-    await store.client.conn.close()  # don't leak the real aiohttp session
-    store.client = FakeKV()  # type: ignore[assignment]
+    # inject the fake before the lazy client property builds a real (networked) one
+    store._client = FakeKV()  # type: ignore[assignment]
     yield store
 
 
@@ -28,6 +28,24 @@ def write_fake_litestream(script_body: str) -> None:
     path = pathlib.Path("litestreambin")
     path.write_text(f"#!/bin/sh\n{script_body}\n")
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
+
+
+@pytest.mark.asyncio
+async def test_construction_does_not_build_kv_client(monkeypatch) -> None:
+    """the KV client (which needs PAUTH/NAMESPACE) is not built at construction,
+    only lazily on first keystate backup/restore"""
+    built = False
+
+    def boom() -> None:
+        nonlocal built
+        built = True
+        raise AssertionError("KV client should not be built at construction")
+
+    monkeypatch.setattr(datastore.pdictng, "fasterpKVStoreClient", boom)
+    store = datastore.SignalDatastore(BOT_NUMBER)
+    assert store.account["number"] == BOT_NUMBER
+    assert store._client is None
+    assert not built
 
 
 @pytest.mark.asyncio
@@ -52,7 +70,6 @@ async def test_accounts_json_from_env(tmp_path: pathlib.Path) -> None:
     ).decode()
     try:
         store = datastore.SignalDatastore(BOT_NUMBER)
-        await store.client.conn.close()
         assert store.account["number"] == BOT_NUMBER
         assert (tmp_path / "state" / "data" / "accounts.json").exists()
     finally:
