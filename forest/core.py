@@ -1238,15 +1238,15 @@ class FsrPayBot(PayBot):
 V = TypeVar("V")
 
 
-def get_source_or_uuid_from_dict(
+def get_uuid_from_dict(
     msg: Message, dict_: Union[Mapping[str, V], Mapping[tuple[str, str], V]]
 ) -> tuple[bool, Optional[V]]:
     """A common pattern is to store intermediate state for individual users as a dictionary.
-    Users can be referred to by some combination of source (a phone number) or uuid (underlying user ID)
-    This abstracts over the possibility space, returning a boolean indicator of whether the sender of a Message
+    Users are identified by uuid, optionally scoped to a group.
+    This returns a boolean indicator of whether the sender of a Message
     is referenced in a dict, and the value pointed at (if any)."""
     group = msg.group or ""
-    for key in [(msg.uuid, group), (msg.uuid, group), msg.uuid, msg.source]:
+    for key in [(msg.uuid, group), msg.uuid]:
         if value := dict_.get(key):  # type: ignore
             return True, value
     return False, None
@@ -1275,10 +1275,10 @@ class QuestionBot(PayBot):
 
     async def handle_message(self, message: Message) -> Response:
         # import pdb;pdb.set_trace()
-        pending_answer, probably_future = get_source_or_uuid_from_dict(
+        pending_answer, probably_future = get_uuid_from_dict(
             message, self.pending_answers
         )
-        _, requires_first_device = get_source_or_uuid_from_dict(
+        _, requires_first_device = get_uuid_from_dict(
             message, self.requires_first_device
         )
 
