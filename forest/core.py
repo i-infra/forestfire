@@ -13,7 +13,6 @@ import base64
 import codecs
 import datetime
 import functools
-import glob
 import json
 import logging
 import os
@@ -44,16 +43,13 @@ from typing import (
 )
 
 import aiohttp
-import asyncpg
 from aiohttp import web
-from prometheus_async import aio
 from prometheus_client import Histogram, Summary
 from ulid2 import generate_ulid_as_base32 as get_uid
 
 # framework
 import mc_util
 from forest import payments_monitor, pghelp, string_dist, utils, datastore
-from forest.cryptography import hash_salt
 from forest.message import Message, StdioMessage
 
 try:
@@ -231,7 +227,9 @@ class Signal:
         if self.sigints >= 3:
             sys.exit(1)
 
-    async def async_shutdown(self, *_: Any, wait: bool = False) -> None:
+    async def async_shutdown(  # pylint: disable=unused-argument
+        self, *_: Any, wait: bool = False
+    ) -> None:
         """
         Close postgres connections pools, kill signal, kill autosave, exit
         """
@@ -249,6 +247,7 @@ class Signal:
             await self.datastore.async_shutdown()
         logging.info("exited".center(60, "="))
         sys.exit(0)  # equivelent to `raise SystemExit()`
+        # pylint: disable=unreachable
         logging.info("called sys.exit but still running, trying os._exit")
         # call C fn _exit() without calling cleanup handlers, flushing stdio buffers, etc.
         os._exit(1)
@@ -297,7 +296,6 @@ class Signal:
             return
         if "error" in blob:
             logging.info("signal: %s", line)
-            error = json.dumps(blob["error"])
             logging.error(blob)
             if "traceback" in blob:
                 exception, *tb = blob["traceback"].split("\n")
@@ -313,7 +311,9 @@ class Signal:
             traceback.print_exception(*sys.exc_info())
         return
 
-    async def enqueue_blob_messages(self, blob: JSON) -> None:
+    async def enqueue_blob_messages(  # pylint: disable=too-many-branches
+        self, blob: JSON
+    ) -> None:
         "turn rpc blobs into the appropriate number of Messages and put them in the inbox"
         message_blob: Optional[JSON] = None
         if blob.get("id") != "PONG":
@@ -1041,8 +1041,6 @@ class FsrPayBot(PayBot):
                 message, "That looked like a payment, but we couldn't parse it"
             )
             return
-        amount_mob = float(mc_util.pmob2mob(amount_pmob))
-        amount_usd_cents = round(amount_mob * await self.mobster.get_rate() * 100)
         await self.respond(message, await self.payment_response(message, amount_pmob))
 
     async def payment_response(self, msg: Message, amount_pmob: int) -> Response:

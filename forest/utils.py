@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # Copyright (c) 2021 MobileCoin Inc.
 # Copyright (c) 2021 The Forest Team
+import datetime
 import functools
-from pythonjsonlogger import json as jsonlogger
 import logging
+import os
 import re
 import shutil
-import os
 from pathlib import Path
 from typing import Optional, cast, Dict, Any
-import datetime
+
+from pythonjsonlogger import json as jsonlogger
 
 
 def QuietAiohttp(record: logging.LogRecord) -> bool:
@@ -30,9 +31,11 @@ logger.setLevel("DEBUG")
 # See example code at https://pypi.org/project/python-json-logger/
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     def add_fields(
-        self, log_record: Dict[Any, Any], record: Any, message_dict: Dict[Any, Any]
+        self, log_data: Dict[Any, Any], record: Any, message_dict: Dict[Any, Any]
     ) -> None:
-        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
+        # explicit parent call (not super()) so this survives importlib.reload in tests
+        jsonlogger.JsonFormatter.add_fields(self, log_data, record, message_dict)
+        log_record = log_data
 
         if not log_record.get("timestamp"):
             # this doesn't use record.created, so it is slightly off

@@ -144,7 +144,6 @@ class TalkBack(QuestionBot):
             and " " not in maybe_displayname
         ):
             return maybe_displayname
-        maybe_user_profile = await self.profile_cache.get(uuid)
         result = await self.signal_rpc_request("listContacts", recipient=uuid)
         user_given = (
             result.blob.get("result", {}).get("profile", {}).get("givenName", "")
@@ -159,8 +158,7 @@ class TalkBack(QuestionBot):
             await self.displayname_cache.set(uuid, user_short)
             await self.displayname_lookup_cache.set(user_short, uuid)
             return user_short
-        else:
-            return "NewUser"
+        return "NewUser"
 
     @requires_admin
     async def do_dump(self, _: Message) -> Response:

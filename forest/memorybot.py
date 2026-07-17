@@ -25,10 +25,7 @@ class MemoryBot(Bot):
 
     def get_user_id(self, msg: Union[Message, JSON]) -> str:
         if isinstance(msg, dict):
-            if "uuid" in msg:
-                if "group-id" in msg:
-                    user = msg["group-id"]
-                user = msg["uuid"]
+            user = msg.get("group-id") or msg.get("uuid") or ""
         else:
             user = msg.uuid
             if msg.group:
@@ -76,10 +73,7 @@ class MemoryBot(Bot):
         save own messages for each channel
         """
         result = await self.pending_requests[rpc_id]
-        if "recipient" in params:
-            user = params["recipient"]
-        if "group-id" in params:
-            user = params["group-id"]
+        user = params.get("group-id") or params.get("recipient") or ""
         params["reactions"] = []
         params["timestamp"] = result.timestamp
         params["uuid"] = self.bot_uuid

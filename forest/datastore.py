@@ -1,16 +1,16 @@
+import asyncio
+import base64
+import json
+import logging
+import os.path
+import sys
+import typing
+from asyncio.subprocess import create_subprocess_exec
+from subprocess import PIPE
+from typing import Optional
+
 from . import pdictng
 from . import utils
-import json
-import sys
-import os.path
-import asyncio
-import logging
-import base64
-
-from typing import Optional
-from subprocess import PIPE
-from asyncio.subprocess import create_subprocess_exec
-import typing
 
 
 class SignalDatastore:
