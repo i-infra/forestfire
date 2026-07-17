@@ -1,6 +1,6 @@
 [project]
 name = "forestbot"
-version = "2.0.0"
+version = "3.0.0"
 description = "Enables a Forest of MobileCoin enabled Signal bots"
 readme = "README.md"
 license = { text = "MIT" }

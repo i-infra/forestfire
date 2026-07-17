@@ -1,3 +1,19 @@
+## 3.0.0
+
+the revival release. breaking changes throughout:
+
+- python >=3.11 (3.13 in Docker/CI); PEP 621 pyproject with hatchling, poetry and poetry.lock are gone
+- uuids are the only user identity: `Message.source` is a deprecated alias of `Message.uuid`, recipients must be uuids, `ADMIN`/`ADMINS` are uuids, mentions match the bot's uuid, `phonenumbers` dependency dropped. `bot_number` renamed to `account_id` (the E164 survives only as the signal-cli account key)
+- fail closed on missing secrets: `AESKEY`, `SALT`, `NAMESPACE`, `PAUTH` are now required (no committed defaults, no hostname namespace)
+- aPersistDict: falsy values readable, ops await the restore, atomic `pop`, JSON-serializability enforced, fire-and-forget `d[k] = v` removed (always `await d.set(...)`)
+- multi-writer unsupported and enforced: one writer process per NAMESPACE via an unencrypted `NAMESPACE_CLAIM` lease in the KV backend
+- `/user`, `/admin`, `/restart` webhooks are gated behind `ENABLE_WEBHOOKS=1` (404 otherwise); `/health` and `/ready` check the signal-cli child for k8s probes
+- `do_eval` is back for debugging, admin-only and gated behind `ENABLE_EVAL=1`
+- protobufs regenerated for protobuf >=4; full-service v2 API; aiohttp >=3.11; json logging via python-json-logger 3.x
+- litestream datastore cleanup: exit codes checked, lifecycle scaffolding removed
+- a real test suite: 82 tests covering message parsing, crypto, datastore, persistence, health endpoints, question flows
+- AuxinMessage removed for good; deleted branches archived as tags `firedex-main-archive` and `mobilecoin-era-final`
+
 ## 2.0.0
 
 - no Auxin :((
