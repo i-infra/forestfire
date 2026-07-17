@@ -72,6 +72,9 @@ class Message(Dictable):
     uuid: str
     payment: dict
     typing: str
+    # set by PayBot when constructing synthetic payment-status messages
+    status: str
+    transaction_log_id: str
     arg0: str
     arg1: Optional[str]
     arg2: Optional[str]

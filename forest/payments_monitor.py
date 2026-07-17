@@ -109,7 +109,9 @@ class Mobster:
     async def req(self, data: dict) -> dict:
         better_data = {"jsonrpc": "2.0", "id": 1, **data}
         logging.debug("url is %s", self.url)
-        async with aiohttp.TCPConnector(ssl=ssl_context) as conn:
+        async with aiohttp.TCPConnector(
+            ssl=ssl_context if ssl_context is not None else True
+        ) as conn:
             async with aiohttp.ClientSession(connector=conn) as sess:
                 # this can hang (forever?) if there's no full-service at that url
                 async with sess.post(
@@ -120,7 +122,7 @@ class Mobster:
                     result = await resp.json()
                     if (
                         "invalid type: null" in json.dumps(result)
-                        and data.get("params") == None
+                        and data.get("params") is None
                     ):
                         data["params"] = {}
                         return await self.req(data)

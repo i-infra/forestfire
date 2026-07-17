@@ -1205,7 +1205,7 @@ class FsrPayBot(PayBot):
             status = await self.confirm_tx_timeout(tx_id, recipient, confirm_tx_timeout)
             resp = await resp_future
             # the calling function can use these to check the payment status
-            resp.status, resp.transaction_log_id = status, tx_id  # type: ignore
+            resp.status, resp.transaction_log_id = status, tx_id
             return resp
         return await resp_future
 
@@ -1262,8 +1262,8 @@ class QuestionBot(PayBot):
         if message.full_text and pending_answer:
             if requires_first_device and not is_first_device(message):
                 return self.FIRST_DEVICE_PLEASE
-            self.requires_first_device.pop(message.source, None)
-            self.requires_first_device.pop(message.uuid, None)
+            if message.uuid:
+                self.requires_first_device.pop(message.uuid, None)
             if probably_future:
                 probably_future.set_result(message)
             return None
@@ -1574,6 +1574,7 @@ class QuestionBot(PayBot):
             answer.lower(),
         )
         # maybe_email is a re.match object, which returns only if there is a match.
+        email: Optional[str] = None
         if maybe_match:
             email = maybe_match.group(0)
 
