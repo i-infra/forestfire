@@ -38,14 +38,16 @@ async def test_get_default(kv) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_falsy_value_returns_default_quirk(kv) -> None:
-    """DOCUMENTS A QUIRK: get() uses `or`, so stored falsy values ("", 0, [])
-    are indistinguishable from absent keys and the default wins."""
+async def test_falsy_values_are_readable(kv) -> None:
+    """stored falsy values ("", 0, []) are real values, not treated as missing"""
     d = await make_dict("tag")
     await d.set("zero", 0)
     await d.set("empty", "")
-    assert await d.get("zero", "default") == "default"  # not 0!
-    assert await d.get("empty", "default") == "default"  # not ""!
+    await d.set("list", [])
+    assert await d.get("zero", "default") == 0
+    assert await d.get("empty", "default") == ""
+    assert await d.get("list", "default") == []
+    assert await d["zero"] == 0  # __getitem__ doesn't raise for falsy values
 
 
 @pytest.mark.asyncio

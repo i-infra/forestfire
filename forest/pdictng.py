@@ -123,10 +123,13 @@ class aPersistDict(Generic[V]):
     def __str__(self) -> str:
         return f"a{self.dict_}"
 
+    _MISSING = object()
+
     async def __getitem__(self, key: str) -> V:
-        if value := await self.get(key):
-            return value
-        raise KeyError(key)
+        value = await self.get(key, self._MISSING)  # type: ignore[arg-type]
+        if value is self._MISSING:
+            raise KeyError(key)
+        return value
 
     def __setitem__(self, key: str, value: V) -> None:
         if self.write_task and not self.write_task.done():
@@ -156,7 +159,10 @@ class aPersistDict(Generic[V]):
             self.write_task = None
         # then grab the lock
         async with self.rwlock:
-            return self.dict_.get(key) or default
+            # explicit membership check so stored falsy values ("", 0, []) are readable
+            if key in self.dict_:
+                return self.dict_[key]
+            return default
 
     async def get_key_by_value(
         self, value: str, default: Optional[str] = None
