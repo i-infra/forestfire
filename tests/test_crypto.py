@@ -47,3 +47,18 @@ def test_hash_salt_deterministic() -> None:
     assert cryptography.hash_salt("key", salt="a") != cryptography.hash_salt(
         "key", salt="b"
     )
+
+
+def test_secrets_validated_lazily(monkeypatch) -> None:
+    """no AESKEY/SALT is only fatal when a persistence primitive is used, not at import"""
+    monkeypatch.setattr(cryptography.utils, "get_secret", lambda key, env=None: "")
+    cryptography.get_aeskey.cache_clear()
+    cryptography.get_salt.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="AESKEY"):
+            cryptography.get_ciphertext_value("x")
+        with pytest.raises(RuntimeError, match="SALT"):
+            cryptography.hash_salt("x")
+    finally:
+        cryptography.get_aeskey.cache_clear()
+        cryptography.get_salt.cache_clear()

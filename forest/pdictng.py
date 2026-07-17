@@ -2,6 +2,7 @@
 # Copyright (c) 2022 MobileCoin Inc.
 # Copyright (c) 2022 Ilia Daniher <i@mobilecoin.com>
 # MIT LICENSE
+import functools
 import asyncio
 import json
 import logging
@@ -14,16 +15,29 @@ import aiohttp
 from forest import utils
 from forest.cryptography import get_ciphertext_value, get_cleartext_value, hash_salt
 
-NAMESPACE = utils.get_secret("NAMESPACE")
-if not NAMESPACE:
-    raise RuntimeError(
-        "NAMESPACE envvar must be set for persistence. It must be stable across "
-        "deploys — a hostname default silently orphans data when hostnames change."
-    )
-pAUTH = utils.get_secret("PAUTH")
-if not pAUTH:
-    raise RuntimeError("PAUTH envvar must be set for persistence.")
+# NAMESPACE and PAUTH are validated lazily, on first construction of a KV client,
+# so bots that never persist state don't need them set. Importing is free.
 pURL = os.getenv("PURL", "http://localhost:8000")
+
+
+@functools.cache
+def get_namespace() -> str:
+    namespace = utils.get_secret("NAMESPACE")
+    if not namespace:
+        raise RuntimeError(
+            "NAMESPACE envvar must be set to use persistence. It must be stable across "
+            "deploys — a hostname default silently orphans data when hostnames change."
+        )
+    return namespace
+
+
+@functools.cache
+def get_pauth() -> str:
+    pauth = utils.get_secret("PAUTH")
+    if not pauth:
+        raise RuntimeError("PAUTH envvar must be set to use persistence.")
+    return pauth
+
 
 # Multi-writer is unsupported: whole-dict writes are last-write-wins, so two
 # processes sharing a namespace silently clobber each other. Each namespace is
@@ -63,13 +77,17 @@ class fasterpKVStoreClient(persistentKVStoreClient):
     def __init__(
         self,
         base_url: str = pURL,
-        auth_str: str = pAUTH,
-        namespace: str = NAMESPACE,
+        auth_str: Optional[str] = None,
+        namespace: Optional[str] = None,
     ):
         self.url = base_url
+        # resolve/validate secrets before opening the session so a missing
+        # PAUTH/NAMESPACE surfaces as a clean RuntimeError, not a loop error
+        self.auth = auth_str if auth_str is not None else get_pauth()
+        self.namespace = hash_salt(
+            namespace if namespace is not None else get_namespace()
+        )
         self.conn = aiohttp.ClientSession()
-        self.auth = auth_str
-        self.namespace = hash_salt(namespace)
         self.exists: dict[str, bool] = {}
         self.headers = {
             "Authorization": f"{self.auth}",
