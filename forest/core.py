@@ -1653,9 +1653,29 @@ async def pong_handler(request: web.Request) -> web.Response:
     return web.Response(status=200, text=pong)
 
 
+def requires_webhooks(
+    handler: Callable[[web.Request], Coroutine[Any, Any, web.Response]],
+) -> Callable[[web.Request], Coroutine[Any, Any, web.Response]]:
+    """Feature-gate for the unauthenticated action webhooks. They can make the
+    bot message arbitrary users or restart, so they're off unless explicitly
+    enabled with ENABLE_WEBHOOKS=1 (and should still be network-restricted)."""
+
+    @wraps(handler)
+    async def gated_handler(request: web.Request) -> web.Response:
+        if not utils.get_secret("ENABLE_WEBHOOKS"):
+            return web.Response(
+                status=404,
+                text="webhooks are disabled; set ENABLE_WEBHOOKS=1 to enable them",
+            )
+        return await handler(request)
+
+    return gated_handler
+
+
+@requires_webhooks
 async def send_message_handler(request: web.Request) -> web.Response:
     """Allow webhooks to send messages to users.
-    Turn this off, authenticate, or obfuscate in prod to someone from using your bot to spam people
+    Gated behind ENABLE_WEBHOOKS; still unauthenticated, so network-restrict it in prod.
     """
     account = request.match_info.get("recipient")
     bot = request.app.get("bot")
@@ -1669,6 +1689,7 @@ async def send_message_handler(request: web.Request) -> web.Response:
     return web.json_response({"status": "sent", "sent_ts": resp.timestamp})
 
 
+@requires_webhooks
 async def admin_handler(request: web.Request) -> web.Response:
     bot = request.app.get("bot")
     if not bot:
@@ -1724,6 +1745,7 @@ async def health_check(request: web.Request) -> web.Response:
     return web.Response(status=200, text="ok")
 
 
+@requires_webhooks
 async def restart(request: web.Request) -> web.Response:
     bot = request.app["bot"]
     bot.restart_task = asyncio.create_task(

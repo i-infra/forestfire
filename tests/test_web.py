@@ -16,6 +16,9 @@ def make_app(bot: Optional[object]) -> web.Application:
         [
             web.get("/health", core.health_check),
             web.get("/ready", core.ready_check),
+            web.post("/admin", core.admin_handler),
+            web.post("/user/{recipient}", core.send_message_handler),
+            web.post("/restart", core.restart),
         ]
     )
     if bot is not None:
@@ -30,6 +33,12 @@ def fake_bot(proc: Optional[object]) -> SimpleNamespace:
 async def get_status(app: web.Application, path: str) -> int:
     async with TestClient(TestServer(app)) as client:
         resp = await client.get(path)
+        return resp.status
+
+
+async def post_status(app: web.Application, path: str, data: str = "") -> int:
+    async with TestClient(TestServer(app)) as client:
+        resp = await client.post(path, data=data)
         return resp.status
 
 
@@ -53,6 +62,30 @@ async def test_running_signal_is_healthy() -> None:
     app = make_app(fake_bot(proc=live_proc))
     assert await get_status(app, "/ready") == 200
     assert await get_status(app, "/health") == 200
+
+
+@pytest.mark.asyncio
+async def test_webhooks_disabled_by_default() -> None:
+    """the action webhooks 404 unless ENABLE_WEBHOOKS is set"""
+    app = make_app(fake_bot(proc=SimpleNamespace(returncode=None)))
+    assert await post_status(app, "/admin", "hi") == 404
+    assert await post_status(app, "/user/some-uuid", "hi") == 404
+    assert await post_status(app, "/restart") == 404
+    # probes are not webhooks and stay reachable
+    assert await get_status(app, "/health") == 200
+
+
+@pytest.mark.asyncio
+async def test_webhooks_enabled_by_secret(set_secret) -> None:
+    set_secret("ENABLE_WEBHOOKS", "1")
+
+    async def admin(msg: str) -> None:
+        admin.messages.append(msg)  # type: ignore[attr-defined]
+
+    admin.messages = []  # type: ignore[attr-defined]
+    app = make_app(SimpleNamespace(proc=None, admin=admin))
+    assert await post_status(app, "/admin", "hello admin") == 200
+    assert admin.messages == ["hello admin"]  # type: ignore[attr-defined]
 
 
 @pytest.mark.asyncio
