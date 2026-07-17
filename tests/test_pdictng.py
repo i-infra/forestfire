@@ -142,20 +142,20 @@ async def test_get_key_by_value(kv) -> None:
 
 
 @pytest.mark.asyncio
-async def test_getitem_setitem(kv) -> None:
+async def test_getitem(kv) -> None:
     d = await make_dict("tag")
-    d["k"] = "v"  # sync setitem schedules a write_task
-    assert await d.get("k") == "v"  # get awaits the pending write
+    await d.set("k", "v")
+    assert await d["k"] == "v"
     with pytest.raises(KeyError):
         await d["missing"]
 
 
 @pytest.mark.asyncio
-async def test_setitem_rejects_overlapping_writes(kv) -> None:
+async def test_setitem_protocol_removed(kv) -> None:
+    """the fire-and-forget d[k] = v protocol is gone; writes are always awaited"""
     d = await make_dict("tag")
-    d["a"] = "1"
-    with pytest.raises(ValueError, match="write_task incomplete"):
-        d["b"] = "2"
+    with pytest.raises(TypeError):
+        d["k"] = "v"
 
 
 @pytest.mark.asyncio

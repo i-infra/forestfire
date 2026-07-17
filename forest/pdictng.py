@@ -115,7 +115,6 @@ class aPersistDict(Generic[V]):
         self.client: persistentKVStoreClient = fasterpKVStoreClient()
         self.rwlock = asyncio.Lock()
         self.init_task = asyncio.create_task(self.finish_init(**kwargs))
-        self.write_task: Optional[asyncio.Task] = None
 
     def __repr__(self) -> str:
         return f"a{self.dict_}"
@@ -130,11 +129,6 @@ class aPersistDict(Generic[V]):
         if value is self._MISSING:
             raise KeyError(key)
         return value
-
-    def __setitem__(self, key: str, value: V) -> None:
-        if self.write_task and not self.write_task.done():
-            raise ValueError("Can't set value. write_task incomplete.")
-        self.write_task = asyncio.create_task(self.set(key, value))
 
     async def finish_init(self, **kwargs: Any) -> None:
         """Does the asynchrnous part of the initialisation process."""
@@ -154,11 +148,6 @@ class aPersistDict(Generic[V]):
     async def get(self, key: str, default: Optional[V] = None) -> Optional[V]:
         """Analogous to dict().get() - but async. Waits until writes have completed on the backend before returning results."""
         await self.init_task
-        # always wait for pending writes - where a task has been created but lock not held
-        if self.write_task:
-            await self.write_task
-            self.write_task = None
-        # then grab the lock
         async with self.rwlock:
             # explicit membership check so stored falsy values ("", 0, []) are readable
             if key in self.dict_:
@@ -170,10 +159,6 @@ class aPersistDict(Generic[V]):
     ) -> Optional[str]:
         """Analagous to destructuring via list comprehension, only faster."""
         await self.init_task
-        if self.write_task:
-            await self.write_task
-            self.write_task = None
-        # then grab the lock
         async with self.rwlock:
             dict_values_as_list = list(self.dict_.values())
             if value in dict_values_as_list:
@@ -213,9 +198,6 @@ class aPersistDict(Generic[V]):
         """Returns and removes a value if it exists. Atomic: the read and the
         removal happen under one lock acquisition."""
         await self.init_task
-        if self.write_task:
-            await self.write_task
-            self.write_task = None
         async with self.rwlock:
             if key in self.dict_:
                 res: V = self.dict_[key]
