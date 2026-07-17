@@ -46,7 +46,6 @@ from typing import (
 import aiohttp
 import asyncpg
 from aiohttp import web
-from phonenumbers import NumberParseException
 from prometheus_async import aio
 from prometheus_client import Histogram, Summary
 from ulid2 import generate_ulid_as_base32 as get_uid
@@ -87,14 +86,11 @@ def rpc(
 
 
 def check_valid_recipient(recipient: str) -> bool:
+    """Recipients are uuids; phone numbers are no longer valid identities."""
     try:
-        assert recipient == utils.signal_format(recipient)
-    except (AssertionError, NumberParseException):
-        try:
-            assert recipient == str(uuid.UUID(recipient))
-        except (AssertionError, ValueError):
-            return False
-    return True
+        return recipient == str(uuid.UUID(recipient))
+    except ValueError:
+        return False
 
 
 async def get_attachment_paths(message: Message) -> list[str]:
@@ -434,7 +430,7 @@ class Signal:
         Parameters
         -----------
         recipient `Optional[str]`:
-            phone number of recepient (if individual user)
+            uuid of recipient (if individual user)
         msg `Response`:
             text message to recipient
         group 'Optional[str]':
@@ -1663,7 +1659,7 @@ async def send_message_handler(request: web.Request) -> web.Response:
     """Allow webhooks to send messages to users.
     Turn this off, authenticate, or obfuscate in prod to someone from using your bot to spam people
     """
-    account = request.match_info.get("phonenumber")
+    account = request.match_info.get("recipient")
     bot = request.app.get("bot")
     if not bot:
         return web.Response(status=504, text="Sorry, no live workers.")
@@ -1753,7 +1749,7 @@ app.add_routes(
     [
         web.get("/", no_get),
         web.get("/pongs/{pong}", pong_handler),
-        web.post("/user/{phonenumber}", send_message_handler),
+        web.post("/user/{recipient}", send_message_handler),
         web.post("/admin", admin_handler),
         web.post("/restart", restart),
         web.get("/health", health_check),
