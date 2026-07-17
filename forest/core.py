@@ -877,25 +877,6 @@ class Bot(Signal):
                 return exception_traceback
         return None
 
-    async def get_uuid_by_phone(self, phonenumber: str) -> Optional[str]:
-        """Queries signal-cli's recipients-store for a UUID, provided a phone number."""
-        if phonenumber.startswith("+"):
-            return (
-                (await self.signal_rpc_request("listContacts", recipient=phonenumber))
-                .blob.get("result", {})
-                .get("uuid")
-            )
-        return None
-
-    async def get_number_by_uuid(self, uuid_: str) -> Optional[str]:
-        """Queries signal-cli's recipients-store for a phone number, provided a uuid."""
-        if uuid_.count("-") == 4:
-            return (
-                (await self.signal_rpc_request("listContacts", recipient=uuid_))
-                .blob.get("result", {})
-                .get("number")
-            )
-        return None
 
 
 class ExtrasBot(Bot):

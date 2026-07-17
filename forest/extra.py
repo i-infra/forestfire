@@ -134,12 +134,9 @@ class TalkBack(QuestionBot):
     async def get_displayname(self, uuid: str) -> str:
         """Retrieves a display name from a UUID, stores in the cache, handles error conditions."""
         uuid = uuid.strip("\u2068\u2069")
-        # displayname provided, not uuid or phone
-        if uuid.count("-") != 4 and not uuid.startswith("+"):
+        # displayname provided, not uuid
+        if uuid.count("-") != 4:
             uuid = await self.displayname_lookup_cache.get(uuid, uuid)
-        # phone number, not uuid provided
-        if uuid.startswith("+"):
-            uuid = await self.get_uuid_by_phone(uuid) or uuid
         maybe_displayname = await self.displayname_cache.get(uuid)
         if (
             maybe_displayname
