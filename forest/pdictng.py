@@ -206,6 +206,15 @@ class aPersistDict(Generic[V]):
     async def _set(self, key: str, value: Optional[V]) -> str:
         """Sets a value at a given key, returns metadata.
         This function exists so *OTHER FUNCTIONS* holding the lock can set values."""
+        if value is not None:
+            # reject unserializable values before mutating local state, so the
+            # in-memory dict can't diverge from what the backend will accept
+            try:
+                json.dumps(value)
+            except (TypeError, ValueError) as e:
+                raise TypeError(
+                    f"value for key {key!r} is not JSON-serializable: {e}"
+                ) from e
         if key is not None and value is not None:
             self.dict_.update({key: value})
         elif key and value is None and key in self.dict_:

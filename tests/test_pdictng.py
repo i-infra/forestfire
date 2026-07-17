@@ -183,6 +183,20 @@ async def test_json_roundtrip_types(kv) -> None:
 
 
 @pytest.mark.asyncio
+async def test_unserializable_values_rejected_cleanly(kv) -> None:
+    """non-JSON values raise TypeError without corrupting local state"""
+    d = await make_dict("tag")
+    await d.set("good", "value")
+    with pytest.raises(TypeError, match="not JSON-serializable"):
+        await d.set("bad", object())
+    # local state is unchanged and still usable
+    assert await d.get("bad") is None
+    assert await d.get("good") == "value"
+    await d.set("still-works", 1)
+    assert await d.get("still-works") == 1
+
+
+@pytest.mark.asyncio
 async def test_ints_increment_decrement(kv) -> None:
     d = pdictng.aPersistDictOfInts("counters")
     await d.init_task
