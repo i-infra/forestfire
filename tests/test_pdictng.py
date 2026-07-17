@@ -17,6 +17,15 @@ def kv(monkeypatch):
     return store
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _cancel_claim_heartbeats():
+    """Don't leak claim heartbeat tasks between tests"""
+    yield
+    for task in asyncio.all_tasks():
+        if task.get_name() == "namespace-claim-heartbeat":
+            task.cancel()
+
+
 async def make_dict(*args, **kwargs) -> pdictng.aPersistDict:
     d = pdictng.aPersistDict(*args, **kwargs)
     await d.init_task
@@ -183,6 +192,73 @@ async def test_json_roundtrip_types(kv) -> None:
 
 
 @pytest.mark.asyncio
+async def test_second_writer_refused(kv) -> None:
+    """a live foreign claim on the namespace blocks a new writer at init"""
+    a = await make_dict("tag", writer_id="writer-a")
+    await a.set("k", "v")
+
+    b = pdictng.aPersistDict("tag", writer_id="writer-b")
+    with pytest.raises(RuntimeError, match="already claimed by writer 'writer-a'"):
+        await b.init_task
+    # and every operation fails closed, since it awaits init
+    with pytest.raises(RuntimeError):
+        await b.get("k")
+
+
+@pytest.mark.asyncio
+async def test_same_writer_multiple_dicts_ok(kv) -> None:
+    """claims are per-process, not per-dict: same writer_id coexists"""
+    a = await make_dict("tag-one")
+    b = await make_dict("tag-two")
+    await a.set("k", 1)
+    await b.set("k", 2)
+    assert await a.get("k") == 1
+    assert await b.get("k") == 2
+
+
+@pytest.mark.asyncio
+async def test_stale_claim_taken_over(kv) -> None:
+    """a claim older than the TTL is dead; a new writer may take the namespace"""
+    import json as _json
+    import time as _time
+
+    kv.store[pdictng.CLAIM_KEY] = _json.dumps(
+        {"writer": "dead-writer", "ts": _time.time() - pdictng.CLAIM_TTL - 1}
+    )
+    d = await make_dict("tag", writer_id="new-writer")
+    await d.set("k", "v")
+    assert await d.get("k") == "v"
+
+
+@pytest.mark.asyncio
+async def test_lost_claim_blocks_writes_allows_reads(kv) -> None:
+    """if a foreign writer takes the namespace, writes refuse but reads still work"""
+    import json as _json
+    import time as _time
+
+    d = await make_dict("tag", writer_id="writer-a")
+    await d.set("k", "v")
+    # another process force-takes the claim
+    kv.store[pdictng.CLAIM_KEY] = _json.dumps({"writer": "usurper", "ts": _time.time()})
+    await d._check_claim()  # what the heartbeat runs periodically
+    assert d.claim_lost
+    with pytest.raises(RuntimeError, match="refusing to write"):
+        await d.set("k", "clobber")
+    assert await d.get("k") == "v"  # reads unaffected
+
+
+@pytest.mark.asyncio
+async def test_claim_is_stored_unencrypted(kv) -> None:
+    """the claim value is plain JSON so any process can read who holds it"""
+    await make_dict("tag", writer_id="readable-writer")
+    import json as _json
+
+    claim = _json.loads(kv.store[pdictng.CLAIM_KEY])
+    assert claim["writer"] == "readable-writer"
+    assert isinstance(claim["ts"], float)
+
+
+@pytest.mark.asyncio
 async def test_unserializable_values_rejected_cleanly(kv) -> None:
     """non-JSON values raise TypeError without corrupting local state"""
     d = await make_dict("tag")
@@ -247,8 +323,9 @@ async def test_every_write_persists_whole_dict(kv) -> None:
     d = await make_dict("tag")
     await d.set("a", 1)
     await d.set("b", 2)
-    assert len(kv.posts) == 2
+    data_posts = [p for p in kv.posts if p[0].startswith("Persist_")]
+    assert len(data_posts) == 2
     # the last post contains both keys
     import json
 
-    assert json.loads(kv.posts[-1][1]) == {"a": 1, "b": 2}
+    assert json.loads(data_posts[-1][1]) == {"a": 1, "b": 2}

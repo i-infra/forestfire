@@ -4,7 +4,11 @@
 # MIT LICENSE
 import asyncio
 import json
+import logging
 import os
+import socket
+import time
+import uuid
 from typing import Any, Generic, Optional, TypeVar, overload
 import aiohttp
 from forest import utils
@@ -21,12 +25,31 @@ if not pAUTH:
     raise RuntimeError("PAUTH envvar must be set for persistence.")
 pURL = os.getenv("PURL", "http://localhost:8000")
 
+# Multi-writer is unsupported: whole-dict writes are last-write-wins, so two
+# processes sharing a namespace silently clobber each other. Each namespace is
+# claimed by one writer process at a time via an *unencrypted* claim key in the
+# backend, so the refusal is legible even to a process holding the wrong keys.
+# This is a guard-rail against accidental double-deploys, not a distributed
+# lock — that would need compare-and-swap support in the backend.
+CLAIM_KEY = "NAMESPACE_CLAIM"
+CLAIM_TTL = int(os.getenv("NAMESPACE_CLAIM_TTL", "60"))
+CLAIM_HEARTBEAT = max(CLAIM_TTL // 3, 1)
+WRITER_ID = f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+
 
 class persistentKVStoreClient:
     async def post(self, key: str, data: str) -> str:
         raise NotImplementedError
 
     async def get(self, key: str) -> Optional[str]:
+        raise NotImplementedError
+
+    async def post_raw(self, key: str, data: str) -> str:
+        """post without encrypting the value (for the namespace claim)"""
+        raise NotImplementedError
+
+    async def get_raw(self, key: str) -> Optional[str]:
+        """get without decrypting the value (for the namespace claim)"""
         raise NotImplementedError
 
 
@@ -53,25 +76,30 @@ class fasterpKVStoreClient(persistentKVStoreClient):
         }
 
     async def post(self, key: str, data: str) -> str:
+        return await self.post_raw(key, get_ciphertext_value(data))
+
+    async def get(self, key: str) -> Optional[str]:
+        """Get and return value of an object with the specified key and namespace"""
+        ciphertext = await self.get_raw(key)
+        if not ciphertext:
+            return None
+        return get_cleartext_value(ciphertext)
+
+    async def post_raw(self, key: str, data: str) -> str:
+        """post with a hashed key but a plaintext value (for the namespace claim)"""
         key = hash_salt(f"{self.namespace}_{key}")
-        data = get_ciphertext_value(data)
-        # try to set
         async with self.conn.post(
             f"{self.url}/{key}", headers=self.headers, data=data
         ) as resp:
             return await resp.text()
 
-    async def get(self, key: str) -> Optional[str]:
-        """Get and return value of an object with the specified key and namespace"""
+    async def get_raw(self, key: str) -> Optional[str]:
+        """get the stored value without decrypting it"""
         key = hash_salt(f"{self.namespace}_{key}")
         async with self.conn.get(f"{self.url}/{key}", headers=self.headers) as resp:
             if resp.status != 200:
                 return None
-            ciphertext = await resp.text()
-            if not ciphertext:
-                return None
-            value = get_cleartext_value(ciphertext)
-            return value
+            return (await resp.text()) or None
 
 
 V = TypeVar("V")
@@ -106,9 +134,12 @@ class aPersistDict(Generic[V]):
             self.tag = args[0]
         if "tag" in kwargs:
             self.tag = kwargs.pop("tag")
+        self.writer_id: str = kwargs.pop("writer_id", None) or WRITER_ID
         self.dict_: dict[str, Any] = {}
         self.client: persistentKVStoreClient = fasterpKVStoreClient()
         self.rwlock = asyncio.Lock()
+        self.claim_lost = False
+        self.claim_task: Optional[asyncio.Task] = None
         self.init_task = asyncio.create_task(self.finish_init(**kwargs))
 
     def __repr__(self) -> str:
@@ -128,11 +159,76 @@ class aPersistDict(Generic[V]):
     async def finish_init(self, **kwargs: Any) -> None:
         """Does the asynchrnous part of the initialisation process."""
         async with self.rwlock:
+            await self._acquire_namespace_claim()
             key = f"Persist_{self.tag}"
             result = await self.client.get(key)
             if result:
                 self.dict_ = json.loads(result)
             self.dict_.update(**kwargs)
+        self.claim_task = asyncio.create_task(
+            self._claim_heartbeat(), name="namespace-claim-heartbeat"
+        )
+
+    @staticmethod
+    def _parse_claim(raw: Optional[str]) -> dict:
+        try:
+            claim = json.loads(raw or "")
+            return claim if isinstance(claim, dict) else {}
+        except ValueError:
+            return {}
+
+    def _claim_is_foreign_and_fresh(self, claim: dict) -> bool:
+        fresh = time.time() - claim.get("ts", 0) < CLAIM_TTL
+        return bool(claim) and fresh and claim.get("writer") != self.writer_id
+
+    async def _acquire_namespace_claim(self) -> None:
+        """Refuse to start if another live writer holds this namespace.
+        Post our claim, then read it back: of two simultaneous acquirers,
+        only the one whose write landed last survives the verify read."""
+        claim = self._parse_claim(await self.client.get_raw(CLAIM_KEY))
+        if self._claim_is_foreign_and_fresh(claim):
+            raise RuntimeError(
+                f"namespace already claimed by writer {claim.get('writer')!r}; "
+                "multi-writer is unsupported. Stop the other process, use a "
+                "different NAMESPACE, or wait for the claim to expire "
+                f"({CLAIM_TTL}s)."
+            )
+        await self._post_claim()
+        verify = self._parse_claim(await self.client.get_raw(CLAIM_KEY))
+        if verify.get("writer") != self.writer_id:
+            raise RuntimeError(
+                f"lost namespace claim race to writer {verify.get('writer')!r}; "
+                "multi-writer is unsupported."
+            )
+
+    async def _post_claim(self) -> None:
+        await self.client.post_raw(
+            CLAIM_KEY, json.dumps({"writer": self.writer_id, "ts": time.time()})
+        )
+
+    async def _check_claim(self) -> None:
+        """Heartbeat body: renew our claim, or mark it lost if a live foreign
+        writer has taken the namespace (writes will then refuse; reads still work)."""
+        claim = self._parse_claim(await self.client.get_raw(CLAIM_KEY))
+        if self._claim_is_foreign_and_fresh(claim):
+            self.claim_lost = True
+            logging.critical(
+                "namespace claim for tag %r lost to writer %r; refusing further writes",
+                self.tag,
+                claim.get("writer"),
+            )
+            return
+        await self._post_claim()
+
+    async def _claim_heartbeat(self) -> None:
+        while not self.claim_lost:
+            await asyncio.sleep(CLAIM_HEARTBEAT)
+            await self._check_claim()
+
+    async def close(self) -> None:
+        """Cancel the claim heartbeat (for tests and graceful shutdown)."""
+        if self.claim_task:
+            self.claim_task.cancel()
 
     @overload
     async def get(self, key: str, default: V) -> V: ...
@@ -201,6 +297,11 @@ class aPersistDict(Generic[V]):
     async def _set(self, key: str, value: Optional[V]) -> str:
         """Sets a value at a given key, returns metadata.
         This function exists so *OTHER FUNCTIONS* holding the lock can set values."""
+        if self.claim_lost:
+            raise RuntimeError(
+                "namespace claim lost to another writer; refusing to write "
+                "(multi-writer is unsupported)"
+            )
         if value is not None:
             # reject unserializable values before mutating local state, so the
             # in-memory dict can't diverge from what the backend will accept

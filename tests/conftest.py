@@ -101,3 +101,9 @@ class FakeKV:
         self.store[key] = data
         self.posts.append((key, data))
         return "OK"
+
+    async def post_raw(self, key: str, data: str) -> str:
+        return await self.post(key, data)
+
+    async def get_raw(self, key: str) -> Optional[str]:
+        return await self.get(key)
