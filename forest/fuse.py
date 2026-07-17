@@ -660,7 +660,7 @@ class FUSE(object):
             name.decode(self.encoding),
             string_at(value, size),
             options,
-            *args
+            *args,
         )
 
     def getxattr(self, path, name, value, size, *args):

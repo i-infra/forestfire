@@ -138,16 +138,16 @@ class Signal:
     actually writes those json blobs to signal client's stdin.
     """
 
-    def __init__(self, bot_number: Optional[str] = None) -> None:
-        if not bot_number:
+    def __init__(self, account_id: Optional[str] = None) -> None:
+        if not account_id:
             try:
-                bot_number = utils.signal_format(sys.argv[1])
-                assert bot_number is not None
+                account_id = utils.signal_format(sys.argv[1])
+                assert account_id is not None
             except IndexError:
-                bot_number = utils.get_secret("BOT_NUMBER")
-        logging.debug("bot number: %s", bot_number)
-        self.bot_number = bot_number
-        self.datastore = datastore.SignalDatastore(bot_number)
+                account_id = utils.get_secret("BOT_NUMBER")
+        logging.debug("account id: %s", account_id)
+        self.account_id = account_id
+        self.datastore = datastore.SignalDatastore(account_id)
         self.bot_uuid: Optional[str] = self.datastore.account.get("uuid")
         self.proc: Optional[subprocess.Process] = None
         self.inbox: Queue[Message] = Queue()
@@ -173,7 +173,7 @@ class Signal:
         while self.sigints == 0 and not self.exiting:
             path = utils.SIGNAL_PATH
             path += " --trust-new-identities always"
-            command = f"{path} --config {utils.ROOT_DIR}/state/ --user {self.bot_number} jsonRpc".split()
+            command = f"{path} --config {utils.ROOT_DIR}/state/ --user {self.account_id} jsonRpc".split()
             logging.info(" ".join(command))
             proc_launch_time = time.time()
             # this ought to FileNotFoundError but doesn't
@@ -183,7 +183,7 @@ class Signal:
             logging.info(
                 "started %s @ %s with PID %s",
                 utils.SIGNAL,
-                self.bot_number,
+                self.account_id,
                 self.proc.pid,
             )
             assert self.proc.stdout and self.proc.stdin and self.proc.stderr
@@ -209,10 +209,10 @@ class Signal:
             logging.warning("Signal exited with returncode %s", returncode)
             if backoff > max_backoff:
                 logging.info(
-                    "%s exiting after %s retries", self.bot_number, restart_count
+                    "%s exiting after %s retries", self.account_id, restart_count
                 )
                 break
-            logging.info("%s will restart in %s second(s)", self.bot_number, backoff)
+            logging.info("%s will restart in %s second(s)", self.account_id, backoff)
             await asyncio.sleep(backoff)
 
     sigints = 0
@@ -642,7 +642,7 @@ class Bot(Signal):
     Subclass this with your own commands.
     """
 
-    def __init__(self, bot_number: Optional[str] = None) -> None:
+    def __init__(self, account_id: Optional[str] = None) -> None:
         """Creates AND STARTS a bot that routes commands to do_x handlers"""
         self.client_session = aiohttp.ClientSession()
         self.pongs: dict[str, str] = {}
@@ -656,7 +656,7 @@ class Bot(Signal):
             for name in self.commands
             if not hasattr(getattr(self, f"do_{name}"), "hide")
         ]
-        super().__init__(bot_number)
+        super().__init__(account_id)
         self.restart_task = asyncio.create_task(
             self.start_process(), name="start_process"
         )  # maybe cancel on sigint?
@@ -874,7 +874,6 @@ class Bot(Signal):
         return None
 
 
-
 class ExtrasBot(Bot):
     async def do_printerfact(self, _: Message) -> str:
         "Learn a fact about printers"
@@ -994,9 +993,9 @@ class PayBot(ExtrasBot):
 class FsrPayBot(PayBot):
     """Class contains Full Service-backed payment functionality."""
 
-    def __init__(self, bot_number: Optional[str] = None) -> None:
+    def __init__(self, account_id: Optional[str] = None) -> None:
         self.mobster = payments_monitor.Mobster()
-        super().__init__(bot_number)
+        super().__init__(account_id)
 
     @requires_admin
     async def do_fsr(self, msg: Message) -> Response:
@@ -1239,7 +1238,7 @@ def is_first_device(msg: Message) -> bool:
 class QuestionBot(PayBot):
     """Class of Bots that have methods for asking questions and awaiting answers"""
 
-    def __init__(self, bot_number: Optional[str] = None) -> None:
+    def __init__(self, account_id: Optional[str] = None) -> None:
         self.pending_answers: dict[tuple[str, str], asyncio.Future[Message]] = {}
         self.requires_first_device: dict[str, bool] = {}
         self.failed_user_challenges: dict[str, int] = {}
@@ -1249,7 +1248,7 @@ class QuestionBot(PayBot):
         )
         self.NEGATIVE_ANSWERS = "no nope n negatory nuh-uh nah".split()
         self.FIRST_DEVICE_PLEASE = "Please answer from your phone or primary device!"
-        super().__init__(bot_number)
+        super().__init__(account_id)
 
     async def handle_message(self, message: Message) -> Response:
         # import pdb;pdb.set_trace()

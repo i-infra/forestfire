@@ -6,8 +6,8 @@ from forest.message import Reaction
 
 
 class MemoryBot(Bot):
-    def __init__(self, bot_number: Optional[str] = None) -> None:
-        super().__init__(bot_number)
+    def __init__(self, account_id: Optional[str] = None) -> None:
+        super().__init__(account_id)
         self.msgs: aPersistDictOfLists[dict] = aPersistDictOfLists("msgs")
 
     async def handle_message(self, message: Message) -> Response:

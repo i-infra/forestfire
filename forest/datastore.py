@@ -28,17 +28,17 @@ class SignalDatastore:
     # tldr - this runs before signal-cli is launched, and cleans up afterwards
     # if this is unreliable for any reason we may need to monitor the account keystate file / upload it periodically
 
-    def __init__(self, bot_number: typing.Optional[str] = None):
-        # if bot_number unknown check sys.argv[1] and if that doesn't work check BOT_NUMBER in secrets file
+    def __init__(self, account_id: typing.Optional[str] = None):
+        # if account_id unknown check sys.argv[1] and if that doesn't work check BOT_NUMBER in secrets file
         # restore accounts.json file (from envvar if needed) - and make directories
-        if not bot_number:
+        if not account_id:
             try:
-                bot_number = utils.signal_format(sys.argv[1])
-                assert bot_number is not None
+                account_id = utils.signal_format(sys.argv[1])
+                assert account_id is not None
             except IndexError:
-                bot_number = utils.get_secret("BOT_NUMBER")
-        logging.debug("bot number: %s", bot_number)
-        self.bot_number = bot_number
+                account_id = utils.get_secret("BOT_NUMBER")
+        logging.debug("account id: %s", account_id)
+        self.account_id = account_id
         self.litestream_path = "./litestreambin"
         self.client = pdictng.fasterpKVStoreClient()
         self.keystate: Optional[str] = None
@@ -60,7 +60,7 @@ class SignalDatastore:
         maybe_account = [
             a
             for a in self.accounts_map.get("accounts")
-            if a.get("number").lstrip("+") == bot_number.lstrip("+")
+            if a.get("number").lstrip("+") == account_id.lstrip("+")
         ]
         if maybe_account:
             self.account = maybe_account[0]
