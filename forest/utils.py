@@ -4,12 +4,11 @@
 import functools
 from pythonjsonlogger import json as jsonlogger
 import logging
+import re
 import shutil
 import os
 from pathlib import Path
 from typing import Optional, cast, Dict, Any
-import phonenumbers as pn
-from phonenumbers import NumberParseException
 import datetime
 
 
@@ -154,7 +153,9 @@ if get_secret("LOGFILES") or not LOCAL:
 
 
 def signal_format(raw_number: str) -> Optional[str]:
-    try:
-        return pn.format_number(pn.parse(raw_number, "US"), pn.PhoneNumberFormat.E164)
-    except NumberParseException:
-        return None
+    """Light E164 normalization for the bot's own account id.
+    signal-cli accounts are keyed by number; user identities are uuids."""
+    number = re.sub(r"[\s().-]", "", raw_number)
+    if re.fullmatch(r"\+\d{7,15}", number):
+        return number
+    return None

@@ -9,7 +9,6 @@ requires-python = ">=3.11"
 dependencies = [
     "asyncpg",
     "base58",
-    "phonenumbers",
     "prometheus_async",
     "prometheus_client",
     "protobuf>=4.25",

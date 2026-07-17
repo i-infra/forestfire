@@ -42,9 +42,11 @@ def test_get_secret_falsy_values() -> None:
 
 
 def test_signal_format() -> None:
+    """signal_format only normalizes the bot's own account id, no region inference"""
     assert utils.signal_format("+1 555 123 4567") == "+15551234567"
-    assert utils.signal_format("(555) 123-4567") == "+15551234567"
+    assert utils.signal_format("+1 (555) 123-4567") == "+15551234567"
     assert utils.signal_format("+447927948360") == "+447927948360"
+    assert utils.signal_format("(555) 123-4567") is None  # no country code
     assert utils.signal_format("gibberish") is None
 
 
