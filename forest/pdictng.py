@@ -210,10 +210,18 @@ class aPersistDict(Generic[V]):
     async def pop(self, key: str, default: None = None) -> Optional[V]: ...
 
     async def pop(self, key: str, default: Optional[V] = None) -> Optional[V]:
-        """Returns and removes a value if it exists"""
-        res = await self.get(key, default)
-        await self.set(key, None)
-        return res
+        """Returns and removes a value if it exists. Atomic: the read and the
+        removal happen under one lock acquisition."""
+        await self.init_task
+        if self.write_task:
+            await self.write_task
+            self.write_task = None
+        async with self.rwlock:
+            if key in self.dict_:
+                res: V = self.dict_[key]
+                await self._set(key, None)
+                return res
+            return default
 
     async def _set(self, key: str, value: Optional[V]) -> str:
         """Sets a value at a given key, returns metadata.

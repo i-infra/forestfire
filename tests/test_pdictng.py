@@ -106,6 +106,19 @@ async def test_remove_and_pop(kv) -> None:
     assert await d.pop("p") == "q"
     assert await d.get("p") is None
     assert await d.pop("gone", "default") == "default"
+    # pop returns stored falsy values, not the default
+    await d.set("zero", 0)
+    assert await d.pop("zero", "default") == 0
+
+
+@pytest.mark.asyncio
+async def test_concurrent_pops_yield_one_winner(kv) -> None:
+    """pop is atomic: exactly one of N concurrent pops gets the value"""
+    d = await make_dict("tag")
+    await d.set("once", "prize")
+    results = await asyncio.gather(*(d.pop("once") for _ in range(10)))
+    assert results.count("prize") == 1
+    assert results.count(None) == 9
 
 
 @pytest.mark.asyncio
