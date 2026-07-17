@@ -72,8 +72,10 @@ PURL=https://your-kv-worker.example.com
 A minimal bot needs only `BOT_NUMBER` and `ADMIN`. The persistence secrets
 (`AESKEY`, `SALT`, `NAMESPACE`, `PAUTH`) are validated **lazily** — they're
 required the first time the bot encrypts or stores state, not at startup, so a
-stateless bot doesn't need them. When persistence *is* used, the framework
-**fails closed**: there are no insecure defaults to forget to override.
+stateless bot doesn't need them. When `RESTORE=1` (keystate backup is on),
+they're validated eagerly at startup instead, so a misconfigured persistent bot
+fails on boot rather than on its first write. When persistence *is* used, the
+framework **fails closed**: there are no insecure defaults to forget to override.
 
 Run it:
 

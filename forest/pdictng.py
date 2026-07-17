@@ -39,6 +39,18 @@ def get_pauth() -> str:
     return pauth
 
 
+def require_persistence_secrets() -> None:
+    """Eagerly validate every secret persistence needs, raising if any is unset.
+    Call this at startup to trade fail-on-first-use for fail-on-boot. The getters
+    are cached, so this also warms them for the first real use."""
+    from forest import cryptography
+
+    get_namespace()
+    get_pauth()
+    cryptography.get_salt()
+    cryptography.get_aeskey()
+
+
 # Multi-writer is unsupported: whole-dict writes are last-write-wins, so two
 # processes sharing a namespace silently clobber each other. Each namespace is
 # claimed by one writer process at a time via an *unencrypted* claim key in the

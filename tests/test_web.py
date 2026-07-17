@@ -64,6 +64,34 @@ async def test_running_signal_is_healthy() -> None:
     assert await get_status(app, "/health") == 200
 
 
+def test_run_bot_validates_secrets_when_restore_set(monkeypatch, set_secret) -> None:
+    """RESTORE guarantees keystate backup, so run_bot validates persistence
+    secrets eagerly instead of failing on the first backup write"""
+    monkeypatch.setattr(core.web, "run_app", lambda *a, **k: None)
+    set_secret("RESTORE", "1")
+
+    called = {"checked": False}
+    monkeypatch.setattr(
+        core.datastore.pdictng,
+        "require_persistence_secrets",
+        lambda: called.__setitem__("checked", True),
+    )
+    core.run_bot(core.QuestionBot)
+    assert called["checked"]
+
+
+def test_run_bot_skips_validation_without_restore(monkeypatch, set_secret) -> None:
+    """a stateless bot (no RESTORE) doesn't demand persistence secrets at startup"""
+    monkeypatch.setattr(core.web, "run_app", lambda *a, **k: None)
+    set_secret("RESTORE", "")
+
+    def boom() -> None:
+        raise AssertionError("should not validate persistence secrets")
+
+    monkeypatch.setattr(core.datastore.pdictng, "require_persistence_secrets", boom)
+    core.run_bot(core.QuestionBot)  # no raise
+
+
 @pytest.mark.asyncio
 async def test_webhooks_disabled_by_default() -> None:
     """the action webhooks 404 unless ENABLE_WEBHOOKS is set"""

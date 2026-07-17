@@ -26,6 +26,40 @@ async def _cancel_claim_heartbeats():
             task.cancel()
 
 
+def test_require_persistence_secrets_ok() -> None:
+    """with all secrets present (conftest sets them), the eager check passes"""
+    pdictng.require_persistence_secrets()  # no raise
+
+
+def test_require_persistence_secrets_fails_on_missing(monkeypatch) -> None:
+    """the eager check raises if any persistence secret is unset"""
+    from forest import cryptography
+
+    monkeypatch.setattr(
+        pdictng.utils,
+        "get_secret",
+        lambda key, env=None: "" if key == "PAUTH" else "present",
+    )
+    for getter in (
+        pdictng.get_namespace,
+        pdictng.get_pauth,
+        cryptography.get_salt,
+        cryptography.get_aeskey,
+    ):
+        getter.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="PAUTH"):
+            pdictng.require_persistence_secrets()
+    finally:
+        for getter in (
+            pdictng.get_namespace,
+            pdictng.get_pauth,
+            cryptography.get_salt,
+            cryptography.get_aeskey,
+        ):
+            getter.cache_clear()
+
+
 async def make_dict(*args, **kwargs) -> pdictng.aPersistDict:
     d = pdictng.aPersistDict(*args, **kwargs)
     await d.init_task

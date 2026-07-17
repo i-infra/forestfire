@@ -1782,6 +1782,11 @@ app.on_startup.append(add_tiprat)
 
 
 def run_bot(bot: Type[Bot], local_app: web.Application = app, port: int = 8081) -> None:
+    # RESTORE guarantees keystate backup runs, so validate persistence secrets
+    # now rather than failing on the first backup write.
+    if utils.get_secret("RESTORE"):
+        datastore.pdictng.require_persistence_secrets()
+
     async def start_wrapper(our_app: web.Application) -> None:
         our_app["bot"] = bot()
 
