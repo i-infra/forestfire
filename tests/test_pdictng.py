@@ -51,6 +51,20 @@ async def test_falsy_values_are_readable(kv) -> None:
 
 
 @pytest.mark.asyncio
+async def test_write_before_restore_does_not_clobber(kv) -> None:
+    """a set() issued immediately after construction waits for the restore,
+    so pre-existing persisted keys survive"""
+    seed = await make_dict("tag")
+    await seed.set("persisted", "value")
+
+    d = pdictng.aPersistDict("tag")
+    # no awaiting init_task: set() must do it internally
+    await d.set("new", "key")
+    assert await d.get("persisted") == "value"
+    assert await d.get("new") == "key"
+
+
+@pytest.mark.asyncio
 async def test_persistence_across_instances(kv) -> None:
     """a second dict with the same tag restores state from the backend"""
     first = await make_dict("shared-tag")

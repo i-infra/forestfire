@@ -153,6 +153,7 @@ class aPersistDict(Generic[V]):
 
     async def get(self, key: str, default: Optional[V] = None) -> Optional[V]:
         """Analogous to dict().get() - but async. Waits until writes have completed on the backend before returning results."""
+        await self.init_task
         # always wait for pending writes - where a task has been created but lock not held
         if self.write_task:
             await self.write_task
@@ -168,6 +169,7 @@ class aPersistDict(Generic[V]):
         self, value: str, default: Optional[str] = None
     ) -> Optional[str]:
         """Analagous to destructuring via list comprehension, only faster."""
+        await self.init_task
         if self.write_task:
             await self.write_task
             self.write_task = None
@@ -182,14 +184,17 @@ class aPersistDict(Generic[V]):
                 return default
 
     async def keys(self) -> list[str]:
+        await self.init_task
         async with self.rwlock:
             return list(self.dict_.keys())
 
     async def values(self) -> list[V]:
+        await self.init_task
         async with self.rwlock:
             return list(self.dict_.values())
 
     async def items(self) -> list[tuple[str, V]]:
+        await self.init_task
         async with self.rwlock:
             return list(self.dict_.items())
 
@@ -223,6 +228,7 @@ class aPersistDict(Generic[V]):
 
     async def set(self, key: str, value: Optional[V]) -> str:
         """Sets a value at a given key, returns metadata."""
+        await self.init_task
         async with self.rwlock:
             return await self._set(key, value)
 
@@ -233,6 +239,7 @@ class aPersistDictOfInts(aPersistDict[int]):
         If the key exists and the value is None, or an empty array, the provided value is added to a(the) list at that value.
         """
         value_to_extend: Any = 0
+        await self.init_task
         async with self.rwlock:
             value_to_extend = self.dict_.get(key, 0)
             if isinstance(value_to_extend, int):
@@ -244,6 +251,7 @@ class aPersistDictOfInts(aPersistDict[int]):
         If the key exists and the value is None, or an empty array, the provided value is added to a(the) list at that value.
         """
         value_to_extend: Any = 0
+        await self.init_task
         async with self.rwlock:
             value_to_extend = self.dict_.get(key, 0)
             if isinstance(value_to_extend, int):
@@ -262,6 +270,7 @@ class aPersistDictOfLists(aPersistDict[list[I]]):
         If the key exists and the value is None, or an empty array, the provided value is added to a(the) list at that value.
         """
         value_to_extend: Optional[list[I]] = []
+        await self.init_task
         async with self.rwlock:
             value_to_extend = self.dict_.get(key, [])
             if isinstance(value_to_extend, list):
@@ -272,6 +281,7 @@ class aPersistDictOfLists(aPersistDict[list[I]]):
     async def remove_from(self, key: str, not_value: I) -> str:
         """Removes a value specified from the list, if present.
         Returns metadata"""
+        await self.init_task
         async with self.rwlock:
             values_to_filter = self.dict_.get(key, [])
             if isinstance(values_to_filter, list):
