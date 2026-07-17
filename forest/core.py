@@ -152,6 +152,7 @@ class Signal:
         logging.debug("bot number: %s", bot_number)
         self.bot_number = bot_number
         self.datastore = datastore.SignalDatastore(bot_number)
+        self.bot_uuid: Optional[str] = self.datastore.account.get("uuid")
         self.proc: Optional[subprocess.Process] = None
         self.inbox: Queue[Message] = Queue()
         self.outbox: Queue[dict] = Queue()
@@ -746,8 +747,8 @@ class Bot(Signal):
                 )
 
     def mentions_us(self, msg: Message) -> bool:
-        # "mentions":[{"name":"+447927948360","number":"+447927948360","uuid":"fc4457f0-c683-44fe-b887-fe3907d7762e","start":0,"length":1}
-        return any(mention.get("number") == self.bot_number for mention in msg.mentions)
+        # "mentions":[{"name":"...","uuid":"fc4457f0-c683-44fe-b887-fe3907d7762e","start":0,"length":1}
+        return any(mention.get("uuid") == self.bot_uuid for mention in msg.mentions)
 
     def is_command(self, msg: Message) -> bool:
         if msg.full_text:

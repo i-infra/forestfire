@@ -65,6 +65,18 @@ async def test_eval_disabled(bot, set_secret) -> None:
 
 
 @pytest.mark.asyncio
+async def test_mentions_us_by_uuid(bot) -> None:
+    from tests.conftest import BOT_UUID
+    from tests.mockbot import MockMessage
+
+    msg = MockMessage("hey bot")
+    msg.mentions = [{"name": "forestbot", "uuid": BOT_UUID, "start": 0, "length": 1}]
+    assert bot.mentions_us(msg)
+    msg.mentions = [{"name": "someone else", "uuid": "not-the-bot"}]
+    assert not bot.mentions_us(msg)
+
+
+@pytest.mark.asyncio
 async def test_questions(bot) -> None:
     """Tests the various questions from questionbot class"""
     # the issue here is that we need to send "yes" *after* the question has been asked
