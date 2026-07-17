@@ -155,18 +155,16 @@ class aPersistDict(Generic[V]):
             return default
 
     async def get_key_by_value(
-        self, value: str, default: Optional[str] = None
+        self, value: V, default: Optional[str] = None
     ) -> Optional[str]:
-        """Analagous to destructuring via list comprehension, only faster."""
+        """Reverse lookup: returns the first key whose value equals `value`
+        (insertion order), or `default` if no key matches. O(n)."""
         await self.init_task
         async with self.rwlock:
-            dict_values_as_list = list(self.dict_.values())
-            if value in dict_values_as_list:
-                index_of_value = dict_values_as_list.index(value)
-                dict_keys_as_list = list(self.dict_.keys())
-                return dict_keys_as_list[index_of_value]
-            else:
-                return default
+            for key, val in self.dict_.items():
+                if val == value:
+                    return key
+            return default
 
     async def keys(self) -> list[str]:
         await self.init_task
@@ -225,9 +223,8 @@ class aPersistDict(Generic[V]):
 
 class aPersistDictOfInts(aPersistDict[int]):
     async def increment(self, key: str, value: int) -> str:
-        """Since one cannot simply add to a coroutine, this function exists.
-        If the key exists and the value is None, or an empty array, the provided value is added to a(the) list at that value.
-        """
+        """Atomically adds `value` to the int at `key`, starting from 0 for
+        missing keys. Raises TypeError if the existing value is not an int."""
         value_to_extend: Any = 0
         await self.init_task
         async with self.rwlock:
@@ -237,9 +234,8 @@ class aPersistDictOfInts(aPersistDict[int]):
             raise TypeError(f"key {key} is not an int")
 
     async def decrement(self, key: str, value: int) -> str:
-        """Since one cannot simply add to a coroutine, this function exists.
-        If the key exists and the value is None, or an empty array, the provided value is added to a(the) list at that value.
-        """
+        """Atomically subtracts `value` from the int at `key`, starting from 0
+        for missing keys. Raises TypeError if the existing value is not an int."""
         value_to_extend: Any = 0
         await self.init_task
         async with self.rwlock:

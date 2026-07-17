@@ -139,6 +139,12 @@ async def test_get_key_by_value(kv) -> None:
     assert await d.get_key_by_value("+2") == "bob"
     assert await d.get_key_by_value("+999") is None
     assert await d.get_key_by_value("+999", "default") == "default"
+    # duplicate values: first key in insertion order wins
+    await d.set("carol", "+1")
+    assert await d.get_key_by_value("+1") == "alice"
+    # non-string values work too
+    await d.set("count", 42)
+    assert await d.get_key_by_value(42) == "count"
 
 
 @pytest.mark.asyncio
