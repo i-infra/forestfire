@@ -4,16 +4,15 @@ from typing import Optional
 
 from forest.core import Message, QuestionBot
 
-from tests.conftest import USER_NUMBER, USER_UUID
+from tests.conftest import USER_UUID
 
 
 class MockMessage(Message):
-    """Makes a Mock Message that has a predefined source and uuid"""
+    """Makes a Mock Message that has a predefined uuid"""
 
     def __init__(self, text: str, uuid: str = USER_UUID) -> None:
         self.text = text
         self.full_text = text
-        self.source = USER_NUMBER
         self.uuid = uuid
         self.group = ""
         self.mentions: list[dict[str, str]] = []

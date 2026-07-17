@@ -29,7 +29,6 @@ def test_parse_command() -> None:
     assert msg.arg1 == "foo"
     assert msg.text == "foo"
     assert msg.full_text == "/ping foo"
-    assert msg.source == USER_NUMBER
     assert msg.uuid == USER_UUID
     assert msg.name == "sylv"
     assert msg.timestamp == 1637290344242
@@ -112,11 +111,19 @@ def test_missing_attributes_are_none() -> None:
     assert msg.payment is None
 
 
-def test_uuid_fallback_source() -> None:
+def test_source_is_deprecated_uuid_alias() -> None:
+    """msg.source returns the uuid (phone numbers are no longer identities)"""
     blob = envelope({"message": "hi"})
     del blob["envelope"]["source"]
     msg = StdioMessage(blob)
-    assert msg.source == USER_UUID
+    assert msg.source == msg.uuid == USER_UUID
+
+
+def test_name_falls_back_to_uuid() -> None:
+    blob = envelope({"message": "hi"})
+    del blob["envelope"]["sourceName"]
+    msg = StdioMessage(blob)
+    assert msg.name == USER_UUID
 
 
 def test_bare_message_base_class() -> None:
