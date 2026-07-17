@@ -14,7 +14,7 @@ class MemoryBot(Bot):
         if message.reaction:
             logging.info("saw a reaction")
             return await self.handle_reaction(message)
-        user = message.source
+        user = message.uuid
         if message.group:
             user = str(message.group)
         if message.full_text:
@@ -25,12 +25,12 @@ class MemoryBot(Bot):
 
     def get_user_id(self, msg: Union[Message, JSON]) -> str:
         if isinstance(msg, dict):
-            if "source" in msg:
+            if "uuid" in msg:
                 if "group-id" in msg:
                     user = msg["group-id"]
-                user = msg["source"]
+                user = msg["uuid"]
         else:
-            user = msg.source
+            user = msg.uuid
             if msg.group:
                 user = str(msg.group)
         return user
@@ -53,14 +53,13 @@ class MemoryBot(Bot):
                 return blob
         return None
 
-    # This maybe doesn't work with auxin?
     async def handle_reaction(self, msg: Message) -> Response:
         """
         route a reaction to the original message.
         """
         assert isinstance(msg.reaction, Reaction)
         react = msg.reaction
-        logging.debug("reaction from %s targeting %s", msg.source, react.ts)
+        logging.debug("reaction from %s targeting %s", msg.uuid, react.ts)
         blob = await self.get_user_message(msg, react.ts)
         if blob:
             user = self.get_user_id(msg)
@@ -83,7 +82,7 @@ class MemoryBot(Bot):
             user = params["group-id"]
         params["reactions"] = []
         params["timestamp"] = result.timestamp
-        params["source"] = self.bot_number
+        params["uuid"] = self.bot_uuid
         await self.msgs.extend(str(user), params)
 
     async def quote_chain(self, msg: JSON) -> list[JSON]:
@@ -108,7 +107,7 @@ class MemoryBot(Bot):
             content["text"] = "None"
         if "reactions" in content:
             content["reactions"] = " ".join(msg["reactions"])
-        content["source"] = msg["source"]
+        content["uuid"] = msg.get("uuid")
         if "name" in msg:
             content["name"] = msg["name"]
         if "quote" in msg:
@@ -120,7 +119,7 @@ class MemoryBot(Bot):
         resp = ", ".join(str(m) for m in await self.quote_chain(msg.to_dict()))
         quote = {
             "quote-timestamp": msg.timestamp,
-            "quote-author": msg.source,
+            "quote-author": msg.uuid,
             "quote-message": msg.full_text,
         }
         await self.respond(msg, resp, **quote)
